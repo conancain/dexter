@@ -1,8 +1,7 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { api } from './api.js';
+import { runYahooBridge } from './yahoo.js';
 import { formatToolResult } from '../types.js';
-import { TTL_15M } from './utils.js';
 
 const CompanyNewsInputSchema = z.object({
   ticker: z
@@ -18,14 +17,13 @@ const CompanyNewsInputSchema = z.object({
 export const getCompanyNews = new DynamicStructuredTool({
   name: 'get_company_news',
   description:
-    'Retrieves recent news headlines, including title, source, publication date, and URL. Pass a ticker for company-specific news, or omit the ticker for broad market news covering macro, rates, earnings, geopolitics, and more. Also useful when trying to explain broad price moves — omit the ticker to check for market-wide catalysts.',
+    'Retrieves recent news headlines, including title, source, publication date, and URL. Pass a ticker for company-specific news, or omit the ticker for broad market news covering macro, rates, earnings, geopolitics, and more.',
   schema: CompanyNewsInputSchema,
   func: async (input) => {
-    const params: Record<string, string | number | undefined> = {
-      ticker: input.ticker?.trim().toUpperCase(),
-      limit: Math.min(input.limit, 10),
-    };
-    const { data, url } = await api.get('/news', params, { cacheable: true, ttlMs: TTL_15M });
-    return formatToolResult((data.news as unknown[]) || [], [url]);
+    const ticker = input.ticker?.trim().toUpperCase() || 'SPY';
+    const data = runYahooBridge('news', ticker, [String(Math.min(input.limit, 10))]);
+    const url = `https://finance.yahoo.com/quote/${ticker}`;
+    return formatToolResult(data.news || [], [url]);
   },
 });
+

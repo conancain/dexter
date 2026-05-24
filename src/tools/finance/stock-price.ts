@@ -1,10 +1,10 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { api } from './api.js';
+import { runYahooBridge } from './yahoo.js';
 import { formatToolResult } from '../types.js';
 
 export const STOCK_PRICE_DESCRIPTION = `
-Fetches current stock price snapshots for equities, including open, high, low, close prices, volume, and market cap. Powered by Financial Datasets.
+Fetches current stock price snapshots for equities, including open, high, low, close prices, volume, and market cap. Powered by Yahoo Finance.
 `.trim();
 
 const StockPriceInputSchema = z.object({
@@ -20,8 +20,8 @@ export const getStockPrice = new DynamicStructuredTool({
   schema: StockPriceInputSchema,
   func: async (input) => {
     const ticker = input.ticker.trim().toUpperCase();
-    const params = { ticker };
-    const { data, url } = await api.get('/prices/snapshot/', params);
+    const data = runYahooBridge('quote', ticker);
+    const url = `https://finance.yahoo.com/quote/${ticker}`;
     return formatToolResult(data.snapshot || {}, [url]);
   },
 });
@@ -44,17 +44,13 @@ export const getStockPrices = new DynamicStructuredTool({
     'Retrieves historical price data for a stock over a specified date range, including open, high, low, close prices and volume.',
   schema: StockPricesInputSchema,
   func: async (input) => {
-    const params = {
-      ticker: input.ticker.trim().toUpperCase(),
-      interval: input.interval,
-      start_date: input.start_date,
-      end_date: input.end_date,
-    };
-    // Cache when the date window is fully closed (OHLCV data is final)
-    const endDate = new Date(input.end_date + 'T00:00:00');
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const { data, url } = await api.get('/prices/', params, { cacheable: endDate < today });
+    const ticker = input.ticker.trim().toUpperCase();
+    const data = runYahooBridge('history', ticker, [
+      input.start_date,
+      input.end_date,
+      input.interval
+    ]);
+    const url = `https://finance.yahoo.com/quote/${ticker}/history`;
     return formatToolResult(data.prices || [], [url]);
   },
 });
@@ -64,7 +60,10 @@ export const getStockTickers = new DynamicStructuredTool({
   description: 'Retrieves the list of available stock tickers that can be used with the stock price tools.',
   schema: z.object({}),
   func: async () => {
-    const { data, url } = await api.get('/prices/snapshot/tickers/', {}, { cacheable: true, ttlMs: 24 * 60 * 60 * 1000 });
-    return formatToolResult(data.tickers || [], [url]);
+    const url = 'https://finance.yahoo.com';
+    // Any ticker supported by Yahoo Finance is available; return a popular list
+    const popularTickers = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'NVDA', 'BRK.B', 'JNJ', 'V'];
+    return formatToolResult(popularTickers, [url]);
   },
 });
+

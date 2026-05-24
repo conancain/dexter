@@ -1,8 +1,7 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { api } from './api.js';
+import { runYahooBridge } from './yahoo.js';
 import { formatToolResult } from '../types.js';
-import { TTL_24H } from './utils.js';
 
 const EarningsInputSchema = z.object({
   ticker: z
@@ -17,8 +16,10 @@ export const getEarnings = new DynamicStructuredTool({
   schema: EarningsInputSchema,
   func: async (input) => {
     const ticker = input.ticker.trim().toUpperCase();
-    const { data, url } = await api.get('/earnings', { ticker }, { cacheable: true, ttlMs: TTL_24H });
+    const data = runYahooBridge('earnings', ticker);
     const record = Array.isArray(data?.earnings) ? data.earnings[0] : null;
+    const url = `https://finance.yahoo.com/quote/${ticker}`;
     return formatToolResult(record || {}, [url]);
   },
 });
+

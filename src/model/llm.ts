@@ -16,13 +16,16 @@ import { classifyError, isNonRetryableError } from '@/utils/errors';
 import { resolveProvider, getProviderById } from '@/providers';
 
 export const DEFAULT_PROVIDER = 'openai';
-export const DEFAULT_MODEL = 'gpt-5.5';
+export const DEFAULT_MODEL = 'google/gemma-4-26b-a4b';
 
 /**
  * Gets the fast model variant for the given provider.
  * Falls back to the provided model if no fast variant is configured (e.g., Ollama).
  */
 export function getFastModel(modelProvider: string, fallbackModel: string): string {
+  if (modelProvider === 'openai' && process.env.OPENAI_BASE_URL) {
+    return fallbackModel;
+  }
   return getProviderById(modelProvider)?.fastModel ?? fallbackModel;
 }
 
@@ -139,6 +142,13 @@ const DEFAULT_FACTORY: ModelFactory = (name, opts) =>
     model: name,
     ...opts,
     apiKey: getApiKey('OPENAI_API_KEY'),
+    ...(process.env.OPENAI_BASE_URL
+      ? {
+          configuration: {
+            baseURL: process.env.OPENAI_BASE_URL,
+          },
+        }
+      : {}),
   });
 
 export function getChatModel(

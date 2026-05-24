@@ -1,10 +1,6 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { api, stripFieldsDeep } from './api.js';
 import { formatToolResult } from '../types.js';
-import { TTL_24H } from './utils.js';
-
-const REDUNDANT_FINANCIAL_FIELDS = ['accession_number', 'currency', 'period'] as const;
 
 const FinancialSegmentsInputSchema = z.object({
   ticker: z
@@ -17,23 +13,18 @@ const FinancialSegmentsInputSchema = z.object({
     .describe(
       "The reporting period for the financial segments. 'annual' for yearly, 'quarterly' for quarterly."
     ),
-  limit: z.number().default(4).describe('The number of past periods to retrieve (default: 4). Increase when broader historical segment trends are required.'),
+  limit: z.number().default(4).describe('The number of past periods to retrieve.'),
 });
 
 export const getFinancialSegments = new DynamicStructuredTool({
   name: 'get_financial_segments',
-  description: `Provides a detailed breakdown of a company's financials by operating segments, such as products, services, or geographic regions. Useful for analyzing the composition of a company's revenue and other segment-level metrics.`,
+  description: `Provides a detailed breakdown of a company's financials by operating segments. (Deprecated under Yahoo Finance migration).`,
   schema: FinancialSegmentsInputSchema,
   func: async (input) => {
-    const params = {
-      ticker: input.ticker,
-      period: input.period,
-      limit: input.limit,
-    };
-    const { data, url } = await api.get('/financials/segments/', params, { cacheable: true, ttlMs: TTL_24H });
     return formatToolResult(
-      stripFieldsDeep(data.segmented_financials || [], REDUNDANT_FINANCIAL_FIELDS),
-      [url]
+      { error: 'Operating segment breakdowns (by product line or geography) are not supported on the free Yahoo Finance integration.' },
+      []
     );
   },
 });
+

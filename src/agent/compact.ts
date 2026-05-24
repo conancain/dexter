@@ -196,7 +196,9 @@ export async function compactContext(params: CompactContextParams): Promise<Comp
 
   // Resolve fast model for the current provider
   const provider = resolveProvider(model);
-  const fastModel = provider.fastModel ?? model;
+  const fastModel = (provider.id === 'openai' && process.env.OPENAI_BASE_URL)
+    ? model
+    : (provider.fastModel ?? model);
 
   // Build the compaction prompt
   const prompt = buildCompactionPrompt(query, toolResults);

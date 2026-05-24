@@ -38,16 +38,31 @@ const DEFAULT_CONTEXT_WINDOW = 128_000;
  */
 export function getEffectiveContextWindow(model: string): number {
   const provider = resolveProvider(model);
-  const contextWindow = provider.contextWindow ?? DEFAULT_CONTEXT_WINDOW;
+  let contextWindow = provider.contextWindow ?? DEFAULT_CONTEXT_WINDOW;
+  
+  if (provider.id === 'openai' && process.env.OPENAI_BASE_URL) {
+    // Local models typically use a context limit configured in LM Studio (usually 8192 or 16384).
+    // We assume a standard target context window of 8192 and scale buffers down accordingly.
+    contextWindow = 8192;
+    const maxOutputLocal = 1500;
+    return contextWindow - maxOutputLocal;
+  }
+  
   return contextWindow - MAX_OUTPUT_TOKENS_FOR_SUMMARY;
 }
 
 /**
  * Get the auto-compact threshold for a model.
  * This is the token count at which compaction should trigger.
- * Formula: effectiveWindow - 13K buffer.
+ * Formula: effectiveWindow - buffer.
  */
 export function getAutoCompactThreshold(model: string): number {
+  const provider = resolveProvider(model);
+  if (provider.id === 'openai' && process.env.OPENAI_BASE_URL) {
+    const effective = getEffectiveContextWindow(model);
+    const bufferLocal = 1000;
+    return effective - bufferLocal;
+  }
   return getEffectiveContextWindow(model) - AUTOCOMPACT_BUFFER_TOKENS;
 }
 

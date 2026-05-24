@@ -611,7 +611,9 @@ export class Agent {
           success: true,
           preCompactTokens: estimatedContextTokens,
           postCompactTokens,
-          compactionModel: resolveProvider(this.model).fastModel ?? this.model,
+          compactionModel: (resolveProvider(this.model).id === 'openai' && process.env.OPENAI_BASE_URL)
+            ? this.model
+            : (resolveProvider(this.model).fastModel ?? this.model),
         };
 
         return;

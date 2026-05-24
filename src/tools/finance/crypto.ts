@@ -1,6 +1,6 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { api } from './api.js';
+import { runYahooBridge } from './yahoo.js';
 import { formatToolResult } from '../types.js';
 
 const CryptoPriceSnapshotInputSchema = z.object({
@@ -16,8 +16,9 @@ export const getCryptoPriceSnapshot = new DynamicStructuredTool({
   description: `Fetches the most recent price snapshot for a specific cryptocurrency, including the latest price, trading volume, and other open, high, low, and close price data. Ticker format: use 'CRYPTO-USD' for USD prices (e.g., 'BTC-USD') or 'CRYPTO-CRYPTO' for crypto-to-crypto prices (e.g., 'BTC-ETH' for Bitcoin priced in Ethereum).`,
   schema: CryptoPriceSnapshotInputSchema,
   func: async (input) => {
-    const params = { ticker: input.ticker };
-    const { data, url } = await api.get('/crypto/prices/snapshot/', params);
+    const ticker = input.ticker.trim().toUpperCase();
+    const data = runYahooBridge('quote', ticker);
+    const url = `https://finance.yahoo.com/quote/${ticker}`;
     return formatToolResult(data.snapshot || {}, [url]);
   },
 });
@@ -45,18 +46,13 @@ export const getCryptoPrices = new DynamicStructuredTool({
   description: `Retrieves historical price data for a cryptocurrency over a specified date range, including open, high, low, close prices, and volume. Ticker format: use 'CRYPTO-USD' for USD prices (e.g., 'BTC-USD') or 'CRYPTO-CRYPTO' for crypto-to-crypto prices (e.g., 'BTC-ETH' for Bitcoin priced in Ethereum).`,
   schema: CryptoPricesInputSchema,
   func: async (input) => {
-    const params = {
-      ticker: input.ticker,
-      interval: input.interval,
-      interval_multiplier: input.interval_multiplier,
-      start_date: input.start_date,
-      end_date: input.end_date,
-    };
-    // Cache when the date window is fully closed (OHLCV data is final)
-    const endDate = new Date(input.end_date + 'T00:00:00');
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const { data, url } = await api.get('/crypto/prices/', params, { cacheable: endDate < today });
+    const ticker = input.ticker.trim().toUpperCase();
+    const data = runYahooBridge('history', ticker, [
+      input.start_date,
+      input.end_date,
+      input.interval
+    ]);
+    const url = `https://finance.yahoo.com/quote/${ticker}/history`;
     return formatToolResult(data.prices || [], [url]);
   },
 });
@@ -66,7 +62,9 @@ export const getCryptoTickers = new DynamicStructuredTool({
   description: `Retrieves the list of available cryptocurrency tickers that can be used with the crypto price tools.`,
   schema: z.object({}),
   func: async () => {
-    const { data, url } = await api.get('/crypto/prices/tickers/', {}, { cacheable: true, ttlMs: 24 * 60 * 60 * 1000 });
-    return formatToolResult(data.tickers || [], [url]);
+    const url = 'https://finance.yahoo.com';
+    const popularCryptos = ['BTC-USD', 'ETH-USD', 'SOL-USD', 'ADA-USD', 'DOGE-USD', 'XRP-USD', 'DOT-USD', 'LINK-USD'];
+    return formatToolResult(popularCryptos, [url]);
   },
 });
+
